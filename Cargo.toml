@@ -1,0 +1,79 @@
+[workspace]
+members = ["crates/fc-data", "crates/fc-data-cli"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+unused_must_use = "deny"
+elided_lifetimes_in_paths = "warn"
+non_ascii_idents = "deny"
+trivial_numeric_casts = "warn"
+unused_lifetimes = "warn"
+single_use_lifetimes = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+indexing_slicing = "deny"
+mem_forget = "deny"
+dbg_macro = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+mod_module_files = "allow"
+multiple_crate_versions = "allow"
+redundant_pub_crate = "allow"
+
+[workspace.dependencies]
+assert_cmd = "2"
+base64 = "0.22"
+clap = { version = "4.5", features = ["derive", "env", "unicode", "wrap_help"] }
+color-eyre = "0.6"
+dotenvy = "0.15"
+futures-util = { version = "0.3", features = ["sink"] }
+predicates = "3"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "query", "rustls"] }
+secrecy = "0.10.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_urlencoded = "0.7"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
+url = "2"
+wiremock = "0.6"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+debug = "line-tables-only"
+
+[profile.dev]
+opt-level = 0
+debug = true
+incremental = true
+codegen-units = 256
+split-debuginfo = "unpacked"

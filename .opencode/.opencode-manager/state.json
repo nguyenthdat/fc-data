@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "mcps": {
+    "bitwarden": {
+      "appliedHash": "7957f587d4ecae93d4f02e5bf35cd5846e98442f9b7f99fc0470bdd767862c8d"
+    }
+  },
+  "plugins": {},
+  "skills": {},
+  "rules": {},
+  "agents": {}
+}

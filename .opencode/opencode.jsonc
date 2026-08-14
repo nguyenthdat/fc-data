@@ -1,0 +1,12 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [".opencode/instructions/rust-module-structure.md"],
+  "mcp": {
+    "bitwarden": {
+      "type": "local",
+      "command": ["npx", "-y", "@bitwarden/mcp-server"],
+      "enabled": true,
+      "environment": { "BW_SESSION": "{env:BW_SESSION}" },
+    },
+  },
+}

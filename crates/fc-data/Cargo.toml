@@ -1,0 +1,28 @@
+[package]
+name = "ssi-fc-data"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Typed Rust library for SSI FastConnect Data REST and streaming APIs"
+publish = false
+
+[dependencies]
+base64.workspace = true
+dotenvy.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+wiremock.workspace = true
+
+[lints]
+workspace = true

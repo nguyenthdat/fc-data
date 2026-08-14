@@ -1,0 +1,27 @@
+[package]
+name = "fc-data-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Optional command-line client for the ssi-fc-data library"
+publish = false
+
+[[bin]]
+name = "fc-data"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+color-eyre.workspace = true
+serde_json.workspace = true
+ssi-fc-data = { path = "../fc-data" }
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+
+[lints]
+workspace = true
