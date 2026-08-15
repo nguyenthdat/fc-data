@@ -1,0 +1,171 @@
+name: Release ssi-fc-data
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_NET_RETRY: "10"
+  CARGO_TERM_COLOR: always
+  CRATE_NAME: ssi-fc-data
+  RUST_TOOLCHAIN: "1.97.1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    name: Publish crate and GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out tagged commit
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" \
+            --profile minimal \
+            --component clippy,rustfmt
+
+      - name: Validate release identity
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Release tag must match vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          }
+          package_version="$({
+            cargo +${RUST_TOOLCHAIN} metadata --no-deps --format-version 1
+          } | jq -er --arg name "$CRATE_NAME" '
+            .packages[] | select(.name == $name) | .version
+          ')"
+          [[ "$package_version" == "${TAG_NAME#v}" ]] || {
+            echo "Tag version does not match the Cargo package version" >&2
+            exit 1
+          }
+
+      - name: Run release quality gates
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: |
+          cargo +${RUST_TOOLCHAIN} fmt --all -- --check
+          cargo +${RUST_TOOLCHAIN} clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo +${RUST_TOOLCHAIN} test --workspace --all-targets --all-features --locked
+          cargo +${RUST_TOOLCHAIN} doc --workspace --all-features --no-deps --locked
+
+      - name: Build and verify package
+        run: |
+          cargo +${RUST_TOOLCHAIN} package -p "$CRATE_NAME" --locked
+          cargo +${RUST_TOOLCHAIN} publish -p "$CRATE_NAME" --locked --dry-run
+
+      - name: Check immutable crates.io version
+        id: crates
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          crate_file="target/package/${CRATE_NAME}-${version}.crate"
+          local_checksum="$(sha256sum "$crate_file" | cut -d ' ' -f 1)"
+          response="$(mktemp)"
+          http_status="$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+            "https://crates.io/api/v1/crates/${CRATE_NAME}/${version}")"
+          case "$http_status" in
+            200)
+              remote_checksum="$(jq -er '.version.checksum' "$response")"
+              [[ "$local_checksum" == "$remote_checksum" ]] || {
+                echo "Existing crates.io package checksum does not match this tag" >&2
+                exit 1
+              }
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Could not determine crates.io package state (HTTP $http_status)" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Publish ssi-fc-data
+        if: steps.crates.outputs.exists != 'true'
+        env:
+          CARGO_REGISTRIES_CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -n "${CARGO_REGISTRIES_CRATES_IO_TOKEN:-}" ]] || {
+            echo "CRATES_IO_TOKEN is not configured" >&2
+            exit 1
+          }
+          cargo +${RUST_TOOLCHAIN} publish -p "$CRATE_NAME" --locked
+
+      - name: Verify crates.io checksum
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          crate_file="target/package/${CRATE_NAME}-${version}.crate"
+          local_checksum="$(sha256sum "$crate_file" | cut -d ' ' -f 1)"
+          for attempt in $(seq 1 30); do
+            remote_checksum="$(curl --fail --silent --show-error \
+              "https://crates.io/api/v1/crates/${CRATE_NAME}/${version}" \
+              | jq -er '.version.checksum')" && {
+                [[ "$local_checksum" == "$remote_checksum" ]] || {
+                  echo "Published crates.io checksum does not match the tagged package" >&2
+                  exit 1
+                }
+                exit 0
+              }
+            [[ "$attempt" -lt 30 ]] || break
+            sleep 10
+          done
+          echo "Published package was not observable on crates.io" >&2
+          exit 1
+
+      - name: Create checksum file
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          version="${TAG_NAME#v}"
+          crate_file="target/package/${CRATE_NAME}-${version}.crate"
+          sha256sum "$crate_file" > "${crate_file}.sha256"
+
+      - name: Create or repair GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          crate_file="target/package/${CRATE_NAME}-${version}.crate"
+          checksum_file="${crate_file}.sha256"
+          if gh release view "$TAG_NAME" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "$crate_file" "$checksum_file" \
+              --repo "$REPOSITORY" --clobber
+          else
+            gh release create "$TAG_NAME" "$crate_file" "$checksum_file" \
+              --repo "$REPOSITORY" \
+              --verify-tag \
+              --title "${CRATE_NAME} ${TAG_NAME}" \
+              --notes "Published on crates.io: https://crates.io/crates/${CRATE_NAME}/${version}" \
+              --generate-notes
+          fi
