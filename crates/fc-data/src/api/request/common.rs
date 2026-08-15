@@ -6,6 +6,7 @@ use super::validation as validate;
 
 /// Invalid SSI Market Data request input.
 #[derive(Debug, Error, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ValidationError {
     /// Page indexes must be between one and ten.
     #[error("page index must be between 1 and 10, received {0}")]
@@ -60,6 +61,7 @@ impl PageQuery {
 
 /// REST request construction failure.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum RequestError {
     /// The configured API base URL could not join an endpoint path.
     #[error("failed to join SSI API endpoint: {0}")]

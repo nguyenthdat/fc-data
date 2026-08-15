@@ -34,6 +34,7 @@ struct CachedAccessToken {
 
 /// SSI client request failure.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ClientError {
     /// The HTTP client could not be constructed.
     #[error("failed to build HTTP client: {0}")]

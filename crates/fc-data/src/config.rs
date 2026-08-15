@@ -37,6 +37,7 @@ pub struct Settings {
 
 /// Transport policy applied while parsing endpoint URLs.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum TransportPolicy {
     /// Require encrypted HTTPS or WSS endpoints.
     SecureOnly,
@@ -46,6 +47,7 @@ pub enum TransportPolicy {
 
 /// Configuration parsing failure.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ConfigError {
     /// A required setting was empty.
     #[error("missing required setting {0}")]
