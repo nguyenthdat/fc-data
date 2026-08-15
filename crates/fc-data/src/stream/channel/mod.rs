@@ -14,6 +14,7 @@ pub struct Channel(String);
 
 /// Typed channel construction failure.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ChannelError {
     /// A symbol or index selector was empty.
     #[error("channel selectors must not be empty")]

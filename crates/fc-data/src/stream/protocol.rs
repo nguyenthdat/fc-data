@@ -11,6 +11,7 @@ const SIGNALR_PATH: &str = "v2.0/signalr/";
 
 /// `SignalR` protocol encoding failure.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ProtocolError {
     /// A `SignalR` endpoint URL was invalid.
     #[error("failed to build SignalR endpoint: {0}")]

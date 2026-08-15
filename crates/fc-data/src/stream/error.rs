@@ -8,6 +8,7 @@ use crate::api::ClientError;
 
 /// SSI `SignalR` streaming failure.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum StreamError {
     /// Access-token acquisition failed.
     #[error(transparent)]
