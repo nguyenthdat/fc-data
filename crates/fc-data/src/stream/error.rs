@@ -3,7 +3,7 @@ use std::time::Duration;
 use serde_json::Value;
 use thiserror::Error;
 
-use super::protocol::ProtocolError;
+use super::{message::StreamDecodeError, protocol::ProtocolError};
 use crate::api::ClientError;
 
 /// SSI `SignalR` streaming failure.
@@ -15,6 +15,9 @@ pub enum StreamError {
     /// Legacy `SignalR` protocol construction or parsing failed.
     #[error(transparent)]
     Protocol(#[from] ProtocolError),
+    /// A typed stream envelope or payload could not be decoded.
+    #[error(transparent)]
+    Decode(#[from] StreamDecodeError),
     /// An HTTP negotiate or start request failed.
     #[error("SSI streaming HTTP request failed: {0}")]
     Http(reqwest::Error),

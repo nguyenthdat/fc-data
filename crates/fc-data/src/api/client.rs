@@ -10,7 +10,7 @@ use serde_json::Value;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-use super::{AccessToken, ApiRequest, RequestError};
+use super::{AccessToken, ApiRequest, RequestError, RestRequest, RestResponse, request::typed_url};
 use crate::config::Settings;
 
 const ACCESS_TOKEN_PATH: &str = "api/v2/Market/AccessToken";
@@ -119,6 +119,28 @@ impl MarketDataClient {
     pub async fn execute(&self, request: &ApiRequest) -> Result<Value, ClientError> {
         let token = self.access_token().await?;
         let url = request.url(self.settings.api_url())?;
+        let response = self
+            .http
+            .get(url)
+            .bearer_auth(token.expose())
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(response)
+    }
+
+    /// Executes a concrete request and deserializes its associated response payload.
+    pub async fn execute_typed<R>(
+        &self,
+        request: &R,
+    ) -> Result<RestResponse<R::Response>, ClientError>
+    where
+        R: RestRequest,
+    {
+        let token = self.access_token().await?;
+        let url = typed_url(request, self.settings.api_url())?;
         let response = self
             .http
             .get(url)

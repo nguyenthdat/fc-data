@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use super::{ValidationError, validate};
+use super::{ValidationError, validation as validate};
 
 pub(super) const BACKTEST_PATH: &str = "api/v2/Market/BackTest";
 

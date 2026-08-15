@@ -6,7 +6,9 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite::Message};
 
 use super::{
+    channel::Channel,
     error::StreamError,
+    message::StreamMessage,
     protocol::{ProtocolError, ServerEvent, server_events, switch_channels_frame},
 };
 
@@ -54,6 +56,20 @@ impl Subscription {
         }
     }
 
+    /// Explicitly receives the next raw JSON broadcast envelope.
+    pub async fn recv_raw(&mut self) -> Result<Option<Value>, StreamError> {
+        self.recv().await
+    }
+
+    /// Receives and decodes the next typed stream message.
+    pub async fn recv_typed(&mut self) -> Result<Option<StreamMessage>, StreamError> {
+        self.recv()
+            .await?
+            .map(StreamMessage::try_from)
+            .transpose()
+            .map_err(StreamError::from)
+    }
+
     /// Switches the active channel on the existing connection.
     pub async fn switch_channel(&mut self, channel: &str) -> Result<(), StreamError> {
         validate_channel(channel)?;
@@ -71,6 +87,16 @@ impl Subscription {
             .await
             .map_err(|_| StreamError::TimedOut(self.control_timeout))??;
         Ok(())
+    }
+
+    /// Explicitly switches with a raw channel string.
+    pub async fn switch_raw(&mut self, channel: &str) -> Result<(), StreamError> {
+        self.switch_channel(channel).await
+    }
+
+    /// Switches the active subscription to a typed channel.
+    pub async fn switch_typed(&mut self, channel: &Channel) -> Result<(), StreamError> {
+        self.switch_channel(channel.as_str()).await
     }
 
     /// Closes this subscription and consumes its open-state owner.

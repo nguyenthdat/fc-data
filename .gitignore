@@ -367,3 +367,4 @@ Cargo.lock
 # End of https://www.toptal.com/developers/gitignore/api/rust,node,python,kotlin,java
 .omo
 .cloakbrowser-artifacts
+.DS_Store

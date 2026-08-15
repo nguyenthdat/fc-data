@@ -14,7 +14,9 @@ use tokio_tungstenite::{
 };
 
 use super::{
+    channel::Channel,
     error::StreamError,
+    message::StreamMessage,
     protocol::{
         NegotiateResponse, connect_url, connection_data, negotiate_url, start_url,
         switch_channels_frame,
@@ -68,6 +70,15 @@ impl StreamOptions {
             timeout,
         })
     }
+
+    /// Builds bounded options from a typed channel.
+    pub fn from_channel(
+        channel: &Channel,
+        max_messages: usize,
+        timeout: Duration,
+    ) -> Result<Self, StreamError> {
+        Self::new(channel.as_str().to_owned(), max_messages, timeout)
+    }
 }
 
 impl<'a> StreamClient<'a> {
@@ -81,6 +92,24 @@ impl<'a> StreamClient<'a> {
         tokio::time::timeout(options.timeout, self.collect_inner(options))
             .await
             .map_err(|_| StreamError::TimedOut(options.timeout))?
+    }
+
+    /// Explicitly collects raw JSON broadcast envelopes.
+    pub async fn collect_raw(&self, options: &StreamOptions) -> Result<Vec<Value>, StreamError> {
+        self.collect(options).await
+    }
+
+    /// Collects and decodes the requested number of typed stream messages.
+    pub async fn collect_typed(
+        &self,
+        options: &StreamOptions,
+    ) -> Result<Vec<StreamMessage>, StreamError> {
+        self.collect(options)
+            .await?
+            .into_iter()
+            .map(StreamMessage::try_from)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(StreamError::from)
     }
 
     async fn collect_inner(&self, options: &StreamOptions) -> Result<Vec<Value>, StreamError> {
@@ -116,6 +145,25 @@ impl<'a> StreamClient<'a> {
         )
         .await
         .map_err(|_| StreamError::TimedOut(handshake_timeout))?
+    }
+
+    /// Explicitly opens a persistent subscription with a raw channel string.
+    pub async fn subscribe_raw(
+        &self,
+        initial_channel: &str,
+        handshake_timeout: Duration,
+    ) -> Result<Subscription, StreamError> {
+        self.subscribe(initial_channel, handshake_timeout).await
+    }
+
+    /// Opens a persistent subscription with a typed channel.
+    pub async fn subscribe_typed(
+        &self,
+        initial_channel: &Channel,
+        handshake_timeout: Duration,
+    ) -> Result<Subscription, StreamError> {
+        self.subscribe(initial_channel.as_str(), handshake_timeout)
+            .await
     }
 
     async fn subscribe_inner(

@@ -59,6 +59,28 @@ pub(super) enum Market {
     Bond,
 }
 
+/// Market filter accepted by the securities endpoint.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(super) enum SecuritiesMarket {
+    /// Ho Chi Minh Stock Exchange.
+    Hose,
+    /// Hanoi Stock Exchange.
+    Hnx,
+    /// Unlisted Public Company Market.
+    Upcom,
+    /// Derivatives market.
+    Der,
+}
+
+/// Exchange filter accepted by the index-list endpoint.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(super) enum Exchange {
+    /// Ho Chi Minh Stock Exchange.
+    Hose,
+    /// Hanoi Stock Exchange.
+    Hnx,
+}
+
 /// Sort direction accepted by SSI.
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub(super) enum Order {
@@ -79,15 +101,26 @@ pub(super) struct PageArgs {
     pub(super) page_size: u16,
 }
 
+/// Pagination flags for securities endpoints.
+#[derive(Debug, Clone, Copy, Args)]
+pub(super) struct SecuritiesPageArgs {
+    /// One-based page number from 1 to 10.
+    #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=10))]
+    pub(super) page_index: u8,
+    /// SSI-supported securities page size.
+    #[arg(long, default_value_t = 100, value_parser = parse_securities_page_size)]
+    pub(super) page_size: u16,
+}
+
 /// Securities list flags.
 #[derive(Debug, Args)]
 pub(super) struct SecuritiesArgs {
     /// Optional market filter.
     #[arg(long, value_enum, ignore_case = true)]
-    pub(super) market: Option<Market>,
+    pub(super) market: Option<SecuritiesMarket>,
     /// Pagination flags.
     #[command(flatten)]
-    pub(super) page: PageArgs,
+    pub(super) page: SecuritiesPageArgs,
 }
 
 /// Securities details flags.
@@ -101,7 +134,7 @@ pub(super) struct SecuritiesDetailsArgs {
     pub(super) symbol: Option<String>,
     /// Pagination flags.
     #[command(flatten)]
-    pub(super) page: PageArgs,
+    pub(super) page: SecuritiesPageArgs,
 }
 
 /// Index components flags.
@@ -120,7 +153,7 @@ pub(super) struct IndexComponentsArgs {
 pub(super) struct IndexListArgs {
     /// Optional exchange filter.
     #[arg(long, value_enum, ignore_case = true)]
-    pub(super) exchange: Option<Market>,
+    pub(super) exchange: Option<Exchange>,
     /// Pagination flags.
     #[command(flatten)]
     pub(super) page: PageArgs,
@@ -152,12 +185,12 @@ pub(super) struct IntradayOhlcArgs {
     /// Stock, derivative, or covered-warrant symbol.
     #[arg(long)]
     pub(super) symbol: String,
-    /// Start date in DD/MM/YYYY form.
+    /// Optional start date in DD/MM/YYYY form.
     #[arg(long)]
-    pub(super) from_date: String,
-    /// End date in DD/MM/YYYY form.
+    pub(super) from_date: Option<String>,
+    /// Optional end date in DD/MM/YYYY form.
     #[arg(long)]
-    pub(super) to_date: String,
+    pub(super) to_date: Option<String>,
     /// Return records in ascending order.
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     pub(super) ascending: bool,
@@ -255,6 +288,26 @@ impl Market {
     }
 }
 
+impl SecuritiesMarket {
+    pub(super) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hose => "HOSE",
+            Self::Hnx => "HNX",
+            Self::Upcom => "UPCOM",
+            Self::Der => "DER",
+        }
+    }
+}
+
+impl Exchange {
+    pub(super) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hose => "HOSE",
+            Self::Hnx => "HNX",
+        }
+    }
+}
+
 impl Order {
     pub(super) const fn as_str(self) -> &'static str {
         match self {
@@ -266,6 +319,10 @@ impl Order {
 
 fn parse_page_size(value: &str) -> Result<u16, String> {
     parse_size(value, &[10, 20, 50, 100, 500, 1000])
+}
+
+fn parse_securities_page_size(value: &str) -> Result<u16, String> {
+    parse_size(value, &[10, 20, 50, 100, 1000])
 }
 
 fn parse_stock_page_size(value: &str) -> Result<u16, String> {

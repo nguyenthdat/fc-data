@@ -7,8 +7,10 @@ separates the primary library at `crates/fc-data/` from the thin optional binary
 The Rust client supports:
 
 - typed configuration and secret handling;
-- all nine SSI Market Data REST v2 request models;
-- authenticated JSON execution through `MarketDataClient`;
+- typed requests and capture-backed responses for all eight REST APIs documented by SSI v2.2;
+- an additional raw `BackTest` request retained for compatibility;
+- typed channels and payloads for `F`, `X-QUOTE`, `X-TRADE`, `R`, `MI`, and `B` streams;
+- raw JSON and raw channel escape hatches for forward compatibility;
 - bounded and persistent realtime subscriptions through `StreamClient`;
 - an optional JSON CLI in its own workspace crate.
 
@@ -30,7 +32,7 @@ Execute a typed securities request:
 
 ```rust
 use ssi_fc_data::{
-    api::{ApiRequest, MarketDataClient, PageQuery, SecuritiesQuery},
+    api::{MarketDataClient, PageQuery, SecuritiesQuery, SecuritiesResponse},
     config::Settings,
 };
 
@@ -39,25 +41,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = MarketDataClient::new(Settings::load()?)?;
     let page = PageQuery::new(1, 10)?;
     let query = SecuritiesQuery::new(Some("HOSE".to_owned()), page)?;
-    let request = ApiRequest::Securities(query);
-    let response = client.execute(&request).await?;
+    let response: SecuritiesResponse = client.execute_typed(&query).await?;
     serde_json::to_writer_pretty(std::io::stdout(), &response)?;
     Ok(())
 }
 ```
 
-For realtime data, construct `StreamClient` from the same authenticated
-`MarketDataClient`. Use validated `StreamOptions` for bounded collection, or open a
-`Subscription` to receive messages, switch channels on the same connection, and close it
-explicitly. Run the live switching example with:
+Every concrete typed REST request implements `RestRequest`, which fixes its response payload at
+compile time. `MarketDataClient::execute` and `ApiRequest` remain available when a caller needs
+the untyped SSI JSON envelope.
+
+For realtime data, construct a `Channel` from a validated `ChannelSelector`, then use
+`collect_typed`, `subscribe_typed`, `recv_typed`, and `switch_typed`. Unknown stream data types
+are preserved by `StreamMessage::Unknown` instead of being discarded. Raw strings and JSON
+remain available through the explicitly named raw methods.
+
+Run a live typed quote decode with:
+
+```bash
+cargo run -p ssi-fc-data --example typed_stream
+```
+
+Run a persistent same-session switch with the raw compatibility example:
 
 ```bash
 cargo run -p ssi-fc-data --example live_switch -- MI:VN30 X-QUOTE:SSI
 ```
 
 Library request structs have private fields. Use their `new` or `parse` functions so invalid
-page sizes, dates, required symbols, market codes, order values, and resolutions are rejected
-before authentication or network I/O.
+endpoint-specific page sizes, exact `DD/MM/YYYY` dates, date ranges, required symbols, market
+codes, exchange codes, order values, and resolutions are rejected before authentication or
+network I/O. Intraday dates are independently optional and are omitted from the query when not
+provided.
 
 ## Credentials
 
@@ -149,7 +164,8 @@ Available REST subcommands:
 - `daily-stock-price`
 - `backtest`
 
-Dates use SSI's `DD/MM/YYYY` format. Pagination is validated before any network request.
+Dates use SSI's exact `DD/MM/YYYY` format. Pagination and endpoint-specific request constraints
+are validated before any network request.
 
 ## Protocol notes
 
