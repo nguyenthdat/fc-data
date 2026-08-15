@@ -4,18 +4,25 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
   cancel-in-progress: false
 
 env:
   CARGO_NET_RETRY: "10"
   CARGO_TERM_COLOR: always
   CRATE_NAME: ssi-fc-data
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
   RUST_TOOLCHAIN: "1.97.1"
 
 defaults:
@@ -34,6 +41,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Install pinned Rust toolchain
         run: |
@@ -43,7 +51,7 @@ jobs:
 
       - name: Validate release identity
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
           [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
@@ -77,14 +85,17 @@ jobs:
       - name: Check immutable crates.io version
         id: crates
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
           version="${TAG_NAME#v}"
           crate_file="target/package/${CRATE_NAME}-${version}.crate"
           local_checksum="$(sha256sum "$crate_file" | cut -d ' ' -f 1)"
           response="$(mktemp)"
+          user_agent="${CRATE_NAME}-release/${version} (https://github.com/${REPOSITORY})"
           http_status="$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+            --user-agent "$user_agent" \
             "https://crates.io/api/v1/crates/${CRATE_NAME}/${version}")"
           case "$http_status" in
             200)
@@ -118,14 +129,17 @@ jobs:
 
       - name: Verify crates.io checksum
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
           version="${TAG_NAME#v}"
           crate_file="target/package/${CRATE_NAME}-${version}.crate"
           local_checksum="$(sha256sum "$crate_file" | cut -d ' ' -f 1)"
+          user_agent="${CRATE_NAME}-release/${version} (https://github.com/${REPOSITORY})"
           for attempt in $(seq 1 30); do
             remote_checksum="$(curl --fail --silent --show-error \
+              --user-agent "$user_agent" \
               "https://crates.io/api/v1/crates/${CRATE_NAME}/${version}" \
               | jq -er '.version.checksum')" && {
                 [[ "$local_checksum" == "$remote_checksum" ]] || {
@@ -142,7 +156,7 @@ jobs:
 
       - name: Create checksum file
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
         run: |
           version="${TAG_NAME#v}"
           crate_file="target/package/${CRATE_NAME}-${version}.crate"
@@ -152,7 +166,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
           version="${TAG_NAME#v}"
