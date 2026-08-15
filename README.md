@@ -8,10 +8,12 @@ The Rust client supports:
 
 - typed configuration and secret handling;
 - typed requests and capture-backed responses for all eight REST APIs documented by SSI v2.2;
+- typed compatibility for the official .NET client's `IntradaybyTick` REST operation;
 - an additional raw `BackTest` request retained for compatibility;
 - typed channels and payloads for `F`, `X-QUOTE`, `X-TRADE`, `R`, `MI`, and `B` streams;
 - raw JSON and raw channel escape hatches for forward compatibility;
-- bounded and persistent realtime subscriptions through `StreamClient`;
+- bounded and persistent realtime subscriptions through `StreamClient`, with opt-in reconnect and
+  resubscribe support;
 - an optional JSON CLI in its own workspace crate.
 
 ```text
@@ -66,6 +68,12 @@ Run a persistent same-session switch with the raw compatibility example:
 
 ```bash
 cargo run -p ssi-fc-data --example live_switch -- MI:VN30 X-QUOTE:SSI
+```
+
+Run an opt-in resilient typed subscription that restores its last channel after transport loss:
+
+```bash
+cargo run -p ssi-fc-data --example resilient_stream
 ```
 
 Library request structs have private fields. Use their `new` or `parse` functions so invalid
@@ -132,6 +140,19 @@ cargo run -p fc-data-cli --bin fc-data -- daily-ohlc \
   --page-size 10
 ```
 
+Query the official .NET client's intraday-by-tick operation:
+
+```bash
+cargo run -p fc-data-cli --bin fc-data -- intraday-by-tick \
+  --symbol SSI \
+  --from-date 14/08/2026 \
+  --to-date 14/08/2026 \
+  --page-size 10
+```
+
+The official .NET v2.0.0 source exposes this operation, but SSI's production endpoint currently
+returns HTTP 404 for its declared `api/v2/Market/IntradaybyTick` path.
+
 Query the SSI `BackTest` endpoint:
 
 ```bash
@@ -160,6 +181,7 @@ Available REST subcommands:
 - `index-list`
 - `daily-ohlc`
 - `intraday-ohlc`
+- `intraday-by-tick`
 - `daily-index`
 - `daily-stock-price`
 - `backtest`
@@ -172,5 +194,13 @@ are validated before any network request.
 SSI streaming uses the `SignalR` 1.3 `/negotiate` -> WebSocket `/connect` -> HTTP `/start` sequence,
 not the ASP.NET Core SignalR handshake implemented by most modern SignalR crates. The Rust
 client therefore uses `reqwest` and `tokio-tungstenite` directly with hub
-`fcmarketdatav2hub` and method `SwitchChannels`. Reconnection is caller policy; the library
-does not silently recreate a closed subscription.
+`fcmarketdatav2hub` and method `SwitchChannels`. Existing subscriptions do not silently
+reconnect. Callers can opt into `ResilientSubscription`, whose default policy matches the
+official .NET client by retrying once after three seconds and restoring the latest channel.
+
+Public enums are `#[non_exhaustive]`; downstream matches must include a wildcard arm so SSI
+protocol and validation cases can evolve without a breaking release.
+
+## License
+
+Licensed under the [MIT License](LICENSE).
