@@ -38,6 +38,8 @@ pub(super) enum Command {
     DailyIndex(DailyIndexArgs),
     /// Get daily stock prices.
     DailyStockPrice(DailyStockPriceArgs),
+    /// Query historical `BackTest` data.
+    Backtest(BacktestArgs),
     /// Collect a bounded number of realtime streaming messages.
     Stream(StreamArgs),
 }
@@ -214,6 +216,17 @@ pub(super) struct DailyStockPriceArgs {
     /// SSI-supported daily stock page size.
     #[arg(long, default_value_t = 100, value_parser = parse_stock_page_size)]
     pub(super) page_size: u16,
+}
+
+/// `BackTest` flags.
+#[derive(Debug, Args)]
+pub(super) struct BacktestArgs {
+    /// Selected trading date passed through to SSI.
+    #[arg(long)]
+    pub(super) selected_date: String,
+    /// Instrument symbol.
+    #[arg(long)]
+    pub(super) symbol: String,
 }
 
 /// Realtime stream flags.

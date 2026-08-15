@@ -7,7 +7,7 @@ mod request;
 
 pub use client::{ClientError, MarketDataClient};
 pub use request::{
-    ApiRequest, DailyIndexInput, DailyIndexQuery, DailyOhlcInput, DailyOhlcQuery,
+    ApiRequest, BacktestQuery, DailyIndexInput, DailyIndexQuery, DailyOhlcInput, DailyOhlcQuery,
     DailyStockPriceInput, DailyStockPriceQuery, IndexComponentsQuery, IndexListQuery,
     IntradayOhlcInput, IntradayOhlcQuery, PageQuery, RequestError, SecuritiesDetailsQuery,
     SecuritiesQuery, ValidationError,

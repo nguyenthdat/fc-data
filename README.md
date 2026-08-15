@@ -1,16 +1,15 @@
 # SSI FastConnect Data Rust Client
 
-This repository now contains a library-first Rust replacement for the SSI Node.js and Python
-FastConnect Data samples. The original `fc-data.node/` and `fc-data.py/` directories remain as
-protocol references. The Rust workspace separates the primary library at `crates/fc-data/`
-from the thin optional binary at `crates/fc-data-cli/`.
+This repository contains a library-first Rust client for SSI FastConnect Data. The workspace
+separates the primary library at `crates/fc-data/` from the thin optional binary at
+`crates/fc-data-cli/`.
 
 The Rust client supports:
 
 - typed configuration and secret handling;
-- all eight SSI Market Data REST v2 request models;
+- all nine SSI Market Data REST v2 request models;
 - authenticated JSON execution through `MarketDataClient`;
-- bounded realtime subscriptions through `LegacyStreamClient`;
+- bounded and persistent realtime subscriptions through `StreamClient`;
 - an optional JSON CLI in its own workspace crate.
 
 ```text
@@ -47,8 +46,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-For realtime data, construct `LegacyStreamClient` from the same authenticated
-`MarketDataClient` and pass validated `StreamOptions`.
+For realtime data, construct `StreamClient` from the same authenticated
+`MarketDataClient`. Use validated `StreamOptions` for bounded collection, or open a
+`Subscription` to receive messages, switch channels on the same connection, and close it
+explicitly. Run the live switching example with:
+
+```bash
+cargo run -p ssi-fc-data --example live_switch -- MI:VN30 X-QUOTE:SSI
+```
 
 Library request structs have private fields. Use their `new` or `parse` functions so invalid
 page sizes, dates, required symbols, market codes, order values, and resolutions are rejected
@@ -56,8 +61,7 @@ before authentication or network I/O.
 
 ## Credentials
 
-The local `.opencode/opencode.jsonc` enables the Bitwarden MCP server. Credentials were loaded
-from the Bitwarden item named `SSI FCDATA` into the ignored root `.env` file.
+Copy `.env.example` to the ignored root `.env` file and populate the SSI credentials.
 
 Required runtime variables:
 
@@ -77,7 +81,7 @@ Never commit `.env` or print its values.
 ```bash
 cargo build -p ssi-fc-data --lib --release
 cargo build -p fc-data-cli --bin fc-data --release
-cargo test --workspace --all-targets
+cargo nextest run --workspace --all-targets --all-features
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
@@ -113,6 +117,17 @@ cargo run -p fc-data-cli --bin fc-data -- daily-ohlc \
   --page-size 10
 ```
 
+Query the SSI `BackTest` endpoint:
+
+```bash
+cargo run -p fc-data-cli --bin fc-data -- backtest \
+  --selected-date 14/08/2026 \
+  --symbol SSI
+```
+
+The request model is retained for API parity, although the live SSI endpoint currently replies
+with `"Not support"`.
+
 Collect one realtime quote broadcast, bounded to 20 seconds:
 
 ```bash
@@ -132,12 +147,14 @@ Available REST subcommands:
 - `intraday-ohlc`
 - `daily-index`
 - `daily-stock-price`
+- `backtest`
 
 Dates use SSI's `DD/MM/YYYY` format. Pagination is validated before any network request.
 
 ## Protocol notes
 
-SSI streaming uses the legacy `/negotiate` -> WebSocket `/connect` -> HTTP `/start` sequence,
+SSI streaming uses the `SignalR` 1.3 `/negotiate` -> WebSocket `/connect` -> HTTP `/start` sequence,
 not the ASP.NET Core SignalR handshake implemented by most modern SignalR crates. The Rust
 client therefore uses `reqwest` and `tokio-tungstenite` directly with hub
-`fcmarketdatav2hub` and method `SwitchChannels`.
+`fcmarketdatav2hub` and method `SwitchChannels`. Reconnection is caller policy; the library
+does not silently recreate a closed subscription.

@@ -2,9 +2,8 @@
 
 use std::time::Duration;
 
-use futures_util::{SinkExt as _, StreamExt as _};
+use futures_util::SinkExt as _;
 use serde_json::Value;
-use thiserror::Error;
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{
@@ -14,11 +13,15 @@ use tokio_tungstenite::{
     },
 };
 
-use super::protocol::{
-    NegotiateResponse, ProtocolError, broadcast_payloads, connect_url, connection_data,
-    negotiate_url, start_url, switch_channels_frame,
+use super::{
+    error::StreamError,
+    protocol::{
+        NegotiateResponse, connect_url, connection_data, negotiate_url, start_url,
+        switch_channels_frame,
+    },
+    session::{Subscription, validate_channel},
 };
-use crate::api::{ClientError, MarketDataClient};
+use crate::api::MarketDataClient;
 
 const MAX_STREAM_MESSAGES: usize = 10_000;
 
@@ -30,47 +33,9 @@ pub struct StreamOptions {
     timeout: Duration,
 }
 
-/// SSI legacy `SignalR` streaming failure.
-#[derive(Debug, Error)]
-pub enum StreamError {
-    /// Access-token acquisition failed.
-    #[error(transparent)]
-    Client(#[from] ClientError),
-    /// Legacy `SignalR` protocol construction or parsing failed.
-    #[error(transparent)]
-    Protocol(#[from] ProtocolError),
-    /// An HTTP negotiate or start request failed.
-    #[error("SSI streaming HTTP request failed: {0}")]
-    Http(reqwest::Error),
-    /// The WebSocket handshake or stream failed.
-    #[error("SSI streaming WebSocket failed: {0}")]
-    WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
-    /// The bearer token could not be represented as an HTTP header.
-    #[error("SSI bearer token contained invalid header bytes")]
-    AuthorizationHeader(#[from] tokio_tungstenite::tungstenite::http::header::InvalidHeaderValue),
-    /// SSI did not permit WebSocket transport.
-    #[error("SSI negotiate response does not permit WebSockets")]
-    WebSocketsUnavailable,
-    /// The negotiated protocol was not compatible with this client.
-    #[error("SSI negotiated unsupported SignalR protocol {0}")]
-    UnsupportedProtocol(String),
-    /// The stream ended before enough data arrived.
-    #[error("SSI closed the stream before the requested messages arrived")]
-    Closed,
-    /// No matching broadcast arrived before the configured timeout.
-    #[error("no SSI broadcast arrived within {0:?}")]
-    TimedOut(Duration),
-    /// Stream options were empty or zero.
-    #[error("invalid stream option: {0}")]
-    InvalidOptions(&'static str),
-    /// SSI returned an unexpected legacy start response.
-    #[error("SSI streaming start response was not 'started'")]
-    UnexpectedStart,
-}
-
-/// SSI legacy `SignalR` client layered on the authenticated REST client.
+/// SSI `SignalR` streaming client layered on the authenticated REST client.
 #[derive(Debug)]
-pub struct LegacyStreamClient<'a> {
+pub struct StreamClient<'a> {
     client: &'a MarketDataClient,
 }
 
@@ -81,9 +46,7 @@ impl StreamOptions {
         max_messages: usize,
         timeout: Duration,
     ) -> Result<Self, StreamError> {
-        if channel.trim().is_empty() {
-            return Err(StreamError::InvalidOptions("channel must not be empty"));
-        }
+        validate_channel(&channel)?;
         if max_messages == 0 {
             return Err(StreamError::InvalidOptions(
                 "max messages must be greater than zero",
@@ -107,8 +70,8 @@ impl StreamOptions {
     }
 }
 
-impl<'a> LegacyStreamClient<'a> {
-    /// Creates a legacy streaming client that reuses SSI authentication and HTTP settings.
+impl<'a> StreamClient<'a> {
+    /// Creates a streaming client that reuses SSI authentication and HTTP settings.
     pub const fn new(client: &'a MarketDataClient) -> Self {
         Self { client }
     }
@@ -121,6 +84,45 @@ impl<'a> LegacyStreamClient<'a> {
     }
 
     async fn collect_inner(&self, options: &StreamOptions) -> Result<Vec<Value>, StreamError> {
+        let mut subscription = self
+            .subscribe_inner(&options.channel, options.timeout)
+            .await?;
+        let mut payloads = Vec::with_capacity(options.max_messages.min(64));
+        while payloads.len() < options.max_messages {
+            let Some(payload) = subscription.recv().await? else {
+                return Err(StreamError::Closed);
+            };
+            payloads.push(payload);
+        }
+        subscription.close().await?;
+        Ok(payloads)
+    }
+
+    /// Opens a persistent subscription after completing the `SignalR` 1.3 handshake.
+    pub async fn subscribe(
+        &self,
+        initial_channel: &str,
+        handshake_timeout: Duration,
+    ) -> Result<Subscription, StreamError> {
+        validate_channel(initial_channel)?;
+        if handshake_timeout.is_zero() {
+            return Err(StreamError::InvalidOptions(
+                "handshake timeout must be greater than zero",
+            ));
+        }
+        tokio::time::timeout(
+            handshake_timeout,
+            self.subscribe_inner(initial_channel, handshake_timeout),
+        )
+        .await
+        .map_err(|_| StreamError::TimedOut(handshake_timeout))?
+    }
+
+    async fn subscribe_inner(
+        &self,
+        initial_channel: &str,
+        control_timeout: Duration,
+    ) -> Result<Subscription, StreamError> {
         let token = self.client.access_token().await?;
         let data = connection_data()?;
         let negotiate: NegotiateResponse = self
@@ -171,39 +173,10 @@ impl<'a> LegacyStreamClient<'a> {
 
         socket
             .send(Message::Text(
-                switch_channels_frame(&options.channel, 1)
-                    .to_string()
-                    .into(),
+                switch_channels_frame(initial_channel, 1).to_string().into(),
             ))
             .await?;
-
-        let mut payloads = Vec::with_capacity(options.max_messages.min(64));
-        while let Some(message) = socket.next().await {
-            match message? {
-                Message::Text(text) => {
-                    let remaining = options.max_messages.saturating_sub(payloads.len());
-                    payloads.extend(
-                        broadcast_payloads(text.as_str())
-                            .map_err(ProtocolError::from)?
-                            .into_iter()
-                            .take(remaining),
-                    );
-                    if payloads.len() == options.max_messages {
-                        socket.close(None).await?;
-                        return Ok(payloads);
-                    }
-                }
-                Message::Close(_) => return Err(StreamError::Closed),
-                Message::Binary(_) | Message::Ping(_) | Message::Pong(_) | Message::Frame(_) => {}
-            }
-        }
-        Err(StreamError::Closed)
-    }
-}
-
-impl From<reqwest::Error> for StreamError {
-    fn from(error: reqwest::Error) -> Self {
-        Self::Http(error.without_url())
+        Ok(Subscription::new(socket, control_timeout))
     }
 }
 

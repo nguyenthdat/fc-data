@@ -4,8 +4,12 @@ use serde::Serialize;
 use thiserror::Error;
 use url::Url;
 
+mod backtest;
 mod validation;
 
+pub use backtest::BacktestQuery;
+
+use backtest::BACKTEST_PATH;
 use validation as validate;
 
 const SECURITIES_PATH: &str = "api/v2/Market/Securities";
@@ -391,6 +395,8 @@ pub enum ApiRequest {
     DailyIndex(DailyIndexQuery),
     /// Query daily stock prices.
     DailyStockPrice(DailyStockPriceQuery),
+    /// Query historical `BackTest` data.
+    Backtest(BacktestQuery),
 }
 
 /// REST request construction failure.
@@ -417,6 +423,7 @@ impl ApiRequest {
             Self::IntradayOhlc(query) => build_url(endpoint, query),
             Self::DailyIndex(query) => build_url(endpoint, query),
             Self::DailyStockPrice(query) => build_url(endpoint, query),
+            Self::Backtest(query) => build_url(endpoint, query),
         }
     }
 
@@ -431,6 +438,7 @@ impl ApiRequest {
             Self::IntradayOhlc(_) => INTRADAY_OHLC_PATH,
             Self::DailyIndex(_) => DAILY_INDEX_PATH,
             Self::DailyStockPrice(_) => DAILY_STOCK_PRICE_PATH,
+            Self::Backtest(_) => BACKTEST_PATH,
         }
     }
 }

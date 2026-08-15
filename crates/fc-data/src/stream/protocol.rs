@@ -1,4 +1,4 @@
-//! Legacy `SignalR` 1.3 query and frame protocol.
+//! `SignalR` 1.3 query and frame protocol.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,7 +9,7 @@ pub(super) const CLIENT_PROTOCOL: &str = "1.3";
 pub(super) const HUB_NAME: &str = "fcmarketdatav2hub";
 const SIGNALR_PATH: &str = "v2.0/signalr/";
 
-/// Legacy `SignalR` protocol encoding failure.
+/// `SignalR` protocol encoding failure.
 #[derive(Debug, Error)]
 pub enum ProtocolError {
     /// A `SignalR` endpoint URL was invalid.
@@ -52,7 +52,13 @@ struct HubMessage {
     arguments: Vec<Value>,
 }
 
-/// Builds the legacy `SignalR` `SwitchChannels` invocation frame.
+#[derive(Debug, PartialEq)]
+pub(super) enum ServerEvent {
+    Broadcast(Value),
+    HubError(Value),
+}
+
+/// Builds the `SignalR` `SwitchChannels` invocation frame.
 pub fn switch_channels_frame(channel: &str, invocation_id: u64) -> Value {
     serde_json::json!({
         "H": HUB_NAME,
@@ -64,16 +70,43 @@ pub fn switch_channels_frame(channel: &str, invocation_id: u64) -> Value {
 
 /// Extracts FC Market Data broadcast arguments from a `SignalR` text frame.
 pub fn broadcast_payloads(frame: &str) -> Result<Vec<Value>, serde_json::Error> {
-    let frame: ServerFrame = serde_json::from_str(frame)?;
-    Ok(frame
-        .messages
+    Ok(server_events(frame)?
         .into_iter()
-        .filter(|message| {
-            message.hub.eq_ignore_ascii_case(HUB_NAME)
-                && message.method.eq_ignore_ascii_case("Broadcast")
+        .filter_map(|event| match event {
+            ServerEvent::Broadcast(payload) => Some(payload),
+            ServerEvent::HubError(_) => None,
         })
-        .flat_map(|message| message.arguments)
         .collect())
+}
+
+pub(super) fn server_events(frame: &str) -> Result<Vec<ServerEvent>, serde_json::Error> {
+    let frame: ServerFrame = serde_json::from_str(frame)?;
+    let mut events = Vec::new();
+    for message in frame.messages {
+        if !message.hub.eq_ignore_ascii_case(HUB_NAME) {
+            continue;
+        }
+        let is_broadcast = message.method.eq_ignore_ascii_case("Broadcast");
+        let is_error = message.method.eq_ignore_ascii_case("Error");
+        if !is_broadcast && !is_error {
+            continue;
+        }
+        for argument in message.arguments {
+            if is_broadcast {
+                events.push(ServerEvent::Broadcast(decode_argument(argument)?));
+            } else {
+                events.push(ServerEvent::HubError(argument));
+            }
+        }
+    }
+    Ok(events)
+}
+
+fn decode_argument(argument: Value) -> Result<Value, serde_json::Error> {
+    match argument {
+        Value::String(serialized) => serde_json::from_str(&serialized),
+        structured => Ok(structured),
+    }
 }
 
 pub(super) fn connection_data() -> Result<String, ProtocolError> {
@@ -138,4 +171,24 @@ pub(super) fn start_url(
 
 fn action_url(base: &Url, action: &str) -> Result<Url, ProtocolError> {
     Ok(base.join(SIGNALR_PATH)?.join(action)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exposes_hub_error_arguments_as_server_events() {
+        // Given
+        let frame = r#"{"M":[{"H":"FcMarketDataV2Hub","M":"Error","A":["channel denied"]}]}"#;
+
+        // When
+        let events = server_events(frame).expect("valid hub error frame");
+
+        // Then
+        assert_eq!(
+            events,
+            vec![ServerEvent::HubError(serde_json::json!("channel denied"))]
+        );
+    }
 }

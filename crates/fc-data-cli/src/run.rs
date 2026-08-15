@@ -6,18 +6,19 @@ use serde_json::Value;
 use thiserror::Error;
 
 use super::args::{
-    Cli, Command, DailyIndexArgs, DailyOhlcArgs, DailyStockPriceArgs, IndexComponentsArgs,
-    IndexListArgs, IntradayOhlcArgs, PageArgs, SecuritiesArgs, SecuritiesDetailsArgs, StreamArgs,
+    BacktestArgs, Cli, Command, DailyIndexArgs, DailyOhlcArgs, DailyStockPriceArgs,
+    IndexComponentsArgs, IndexListArgs, IntradayOhlcArgs, PageArgs, SecuritiesArgs,
+    SecuritiesDetailsArgs, StreamArgs,
 };
 use ssi_fc_data::{
     api::{
-        ApiRequest, ClientError, DailyIndexInput, DailyIndexQuery, DailyOhlcInput, DailyOhlcQuery,
-        DailyStockPriceInput, DailyStockPriceQuery, IndexComponentsQuery, IndexListQuery,
-        IntradayOhlcInput, IntradayOhlcQuery, MarketDataClient, PageQuery, SecuritiesDetailsQuery,
-        SecuritiesQuery, ValidationError,
+        ApiRequest, BacktestQuery, ClientError, DailyIndexInput, DailyIndexQuery, DailyOhlcInput,
+        DailyOhlcQuery, DailyStockPriceInput, DailyStockPriceQuery, IndexComponentsQuery,
+        IndexListQuery, IntradayOhlcInput, IntradayOhlcQuery, MarketDataClient, PageQuery,
+        SecuritiesDetailsQuery, SecuritiesQuery, ValidationError,
     },
     config::{ConfigError, Settings},
-    stream::{LegacyStreamClient, StreamError, StreamOptions},
+    stream::{StreamClient, StreamError, StreamOptions},
 };
 
 /// CLI execution failure.
@@ -59,6 +60,7 @@ pub(super) async fn run(cli: Cli) -> Result<(), RunError> {
         Command::IntradayOhlc(args) => execute(&client, args.try_into()?).await?,
         Command::DailyIndex(args) => execute(&client, args.try_into()?).await?,
         Command::DailyStockPrice(args) => execute(&client, args.try_into()?).await?,
+        Command::Backtest(args) => execute(&client, args.try_into()?).await?,
         Command::Stream(args) => execute_stream(&client, args).await?,
     };
     write_json(&output)
@@ -74,7 +76,7 @@ async fn execute_stream(client: &MarketDataClient, args: StreamArgs) -> Result<V
         args.max_messages,
         Duration::from_secs(args.timeout_seconds),
     )?;
-    let payloads = LegacyStreamClient::new(client).collect(&options).await?;
+    let payloads = StreamClient::new(client).collect(&options).await?;
     Ok(Value::Array(payloads))
 }
 
@@ -201,6 +203,17 @@ impl TryFrom<DailyStockPriceArgs> for ApiRequest {
                 page,
                 market: args.market.map(|market| market.as_str().to_owned()),
             },
+        )?))
+    }
+}
+
+impl TryFrom<BacktestArgs> for ApiRequest {
+    type Error = ValidationError;
+
+    fn try_from(args: BacktestArgs) -> Result<Self, Self::Error> {
+        Ok(Self::Backtest(BacktestQuery::new(
+            args.selected_date,
+            args.symbol,
         )?))
     }
 }

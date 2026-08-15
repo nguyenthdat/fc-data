@@ -14,6 +14,7 @@ fn shows_supported_commands_when_help_is_requested() {
         .assert()
         .success()
         .stdout(predicate::str::contains("securities"))
+        .stdout(predicate::str::contains("backtest"))
         .stdout(predicate::str::contains("stream"));
 }
 

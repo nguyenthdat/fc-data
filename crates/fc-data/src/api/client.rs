@@ -61,9 +61,10 @@ pub enum ClientError {
 }
 
 #[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 struct AuthRequest<'a> {
+    #[serde(rename = "consumerID")]
     consumer_id: &'a str,
+    #[serde(rename = "consumerSecret")]
     consumer_secret: &'a str,
 }
 

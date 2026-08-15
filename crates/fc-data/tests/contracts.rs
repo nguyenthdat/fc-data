@@ -2,8 +2,8 @@
 
 use ssi_fc_data::{
     api::{
-        ApiRequest, DailyIndexInput, DailyIndexQuery, IntradayOhlcInput, IntradayOhlcQuery,
-        MarketDataClient, PageQuery, SecuritiesQuery,
+        ApiRequest, BacktestQuery, DailyIndexInput, DailyIndexQuery, IntradayOhlcInput,
+        IntradayOhlcQuery, MarketDataClient, PageQuery, SecuritiesQuery,
     },
     config::{Settings, SettingsInput, TransportPolicy},
     stream::{StreamError, broadcast_payloads, switch_channels_frame},
@@ -11,7 +11,7 @@ use ssi_fc_data::{
 use url::Url;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
-    matchers::{method, path},
+    matchers::{body_json, method, path},
 };
 
 #[test]
@@ -149,7 +149,35 @@ fn rejects_unsupported_pagination_in_the_library() {
 }
 
 #[test]
-fn serializes_switch_channels_as_a_legacy_signalr_invocation() {
+fn preserves_python_backtest_path_and_query_keys() {
+    // Given
+    let query = BacktestQuery::new("14/08/2026".to_owned(), "SSI".to_owned())
+        .expect("valid BackTest query");
+    let request = ApiRequest::Backtest(query);
+
+    // When
+    let url = request
+        .url(&Url::parse("https://fc-data.ssi.com.vn/").expect("valid URL"))
+        .expect("BackTest URL");
+
+    // Then
+    assert_eq!(url.path(), "/api/v2/Market/BackTest");
+    assert_eq!(url.query(), Some("selectedDate=14%2F08%2F2026&symbol=SSI"));
+}
+
+#[test]
+fn rejects_empty_backtest_fields_before_network_io() {
+    // Given / When
+    let missing_date = BacktestQuery::new(String::new(), "SSI".to_owned());
+    let missing_symbol = BacktestQuery::new("14/08/2026".to_owned(), String::new());
+
+    // Then
+    assert!(missing_date.is_err());
+    assert!(missing_symbol.is_err());
+}
+
+#[test]
+fn serializes_switch_channels_as_a_signalr_invocation() {
     // Given
     let channel = "X-QUOTE:ALL";
 
@@ -169,9 +197,9 @@ fn serializes_switch_channels_as_a_legacy_signalr_invocation() {
 }
 
 #[test]
-fn extracts_broadcast_arguments_from_a_legacy_signalr_frame() {
+fn extracts_broadcast_arguments_from_a_signalr_frame() {
     // Given
-    let frame = r#"{"C":"cursor","M":[{"H":"FcMarketDataV2Hub","M":"Broadcast","A":[{"DataType":"MI","Content":"{}"}]}]}"#;
+    let frame = r#"{"C":"cursor","M":[{"H":"FcMarketDataV2Hub","M":"Broadcast","A":["{\"DataType\":\"MI\",\"Content\":\"{}\"}"]}]}"#;
 
     // When
     let payloads = broadcast_payloads(frame).expect("valid SignalR frame");
@@ -183,12 +211,40 @@ fn extracts_broadcast_arguments_from_a_legacy_signalr_frame() {
     );
 }
 
+#[test]
+fn preserves_already_structured_broadcast_arguments() {
+    // Given
+    let frame = r#"{"M":[{"H":"FcMarketDataV2Hub","M":"Broadcast","A":[{"price":42}]}]}"#;
+
+    // When
+    let payloads = broadcast_payloads(frame).expect("valid broadcast frame");
+
+    // Then
+    assert_eq!(payloads, vec![serde_json::json!({"price": 42})]);
+}
+
+#[test]
+fn rejects_malformed_nested_broadcast_json() {
+    // Given
+    let frame = r#"{"M":[{"H":"FcMarketDataV2Hub","M":"Broadcast","A":["{not-json}"]}]}"#;
+
+    // When
+    let result = broadcast_payloads(frame);
+
+    // Then
+    assert!(result.is_err());
+}
+
 #[tokio::test]
 async fn reuses_a_cached_access_token_across_authentication_calls() {
     // Given
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/api/v2/Market/AccessToken"))
+        .and(body_json(serde_json::json!({
+            "consumerID": "consumer-id",
+            "consumerSecret": "consumer-secret"
+        })))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "status": 200,
             "message": "Success",
