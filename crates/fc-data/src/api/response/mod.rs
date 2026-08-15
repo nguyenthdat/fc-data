@@ -2,10 +2,12 @@
 
 mod envelope;
 mod history;
+mod intraday_tick;
 mod reference;
 
 pub use envelope::RestResponse;
 pub use history::{DailyIndex, DailyOhlc, DailyStockPrice, IntradayOhlc};
+pub use intraday_tick::IntradayByTick;
 pub use reference::{
     Index, IndexComponent, IndexComponents, SecuritiesDetails, Security, SecurityDetails,
 };
@@ -22,6 +24,8 @@ pub type IndexListResponse = RestResponse<Index>;
 pub type DailyOhlcResponse = RestResponse<DailyOhlc>;
 /// Intraday OHLC endpoint response.
 pub type IntradayOhlcResponse = RestResponse<IntradayOhlc>;
+/// Intraday-by-tick endpoint response.
+pub type IntradayByTickResponse = RestResponse<IntradayByTick>;
 /// Daily index endpoint response.
 pub type DailyIndexResponse = RestResponse<DailyIndex>;
 /// Daily stock price endpoint response.
