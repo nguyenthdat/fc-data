@@ -36,7 +36,7 @@ pub struct StreamOptions {
 }
 
 /// SSI `SignalR` streaming client layered on the authenticated REST client.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct StreamClient<'a> {
     client: &'a MarketDataClient,
 }
