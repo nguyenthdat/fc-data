@@ -79,5 +79,6 @@ fn describe(message: &StreamMessage) -> (&str, &str) {
         StreamMessage::Index(value) => ("MI", &value.index_id),
         StreamMessage::Bar(value) => ("B", &value.symbol),
         StreamMessage::Unknown { data_type, .. } => (data_type, "unknown"),
+        _ => ("UNMODELED", "unknown"),
     }
 }

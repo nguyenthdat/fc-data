@@ -12,6 +12,7 @@ pub use quote::Quote;
 
 /// A decoded SSI stream message.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum StreamMessage {
     /// Securities status payload (`F`).
     SecuritiesStatus(SecuritiesStatus),
@@ -36,6 +37,7 @@ pub enum StreamMessage {
 
 /// Typed stream envelope or payload decoding failure.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum StreamDecodeError {
     /// The outer `DataType` and `Content` envelope was invalid.
     #[error("invalid SSI stream envelope: {0}")]
