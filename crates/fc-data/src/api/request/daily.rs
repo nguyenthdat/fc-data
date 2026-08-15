@@ -24,6 +24,15 @@ pub struct DailyIndexInput {
     pub order: String,
 }
 
+/// Daily index input with the official .NET ascending flag.
+#[derive(Debug)]
+pub struct DailyIndexOptions {
+    /// Existing daily index request fields.
+    pub input: DailyIndexInput,
+    /// Return records in ascending order.
+    pub ascending: bool,
+}
+
 /// Daily index request used by the official Python v2.2.2 client.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,11 +45,21 @@ pub struct DailyIndexQuery {
     page: PageQuery,
     order_by: String,
     order: String,
+    ascending: bool,
 }
 
 impl DailyIndexQuery {
     /// Parses required daily index fields and ordering.
     pub fn parse(input: DailyIndexInput) -> Result<Self, ValidationError> {
+        Self::parse_with_options(DailyIndexOptions {
+            input,
+            ascending: false,
+        })
+    }
+
+    /// Parses daily index fields with the official ascending flag.
+    pub fn parse_with_options(options: DailyIndexOptions) -> Result<Self, ValidationError> {
+        let input = options.input;
         validate::required(&input.index_id, "indexId")?;
         let from_date = validate::date(&input.from_date, "fromDate")?;
         let to_date = validate::date(&input.to_date, "toDate")?;
@@ -54,6 +73,7 @@ impl DailyIndexQuery {
             page: input.page,
             order_by: input.order_by,
             order: input.order,
+            ascending: options.ascending,
         })
     }
 }

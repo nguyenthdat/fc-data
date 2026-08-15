@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use url::Url;
 
 use super::response::{
-    DailyIndex, DailyOhlc, DailyStockPrice, Index, IndexComponents, IntradayOhlc,
+    DailyIndex, DailyOhlc, DailyStockPrice, Index, IndexComponents, IntradayByTick, IntradayOhlc,
     SecuritiesDetails, Security,
 };
 
@@ -12,14 +12,18 @@ mod backtest;
 mod common;
 mod daily;
 mod date;
+mod intraday_tick;
 mod ohlc;
 mod reference;
 mod validation;
 
 pub use backtest::BacktestQuery;
 pub use common::{PageQuery, RequestError, ValidationError};
-pub use daily::{DailyIndexInput, DailyIndexQuery, DailyStockPriceInput, DailyStockPriceQuery};
+pub use daily::{
+    DailyIndexInput, DailyIndexOptions, DailyIndexQuery, DailyStockPriceInput, DailyStockPriceQuery,
+};
 pub use date::{SsiDate, SsiDateError};
+pub use intraday_tick::{IntradayByTickInput, IntradayByTickQuery};
 pub use ohlc::{
     DailyOhlcInput, DailyOhlcQuery, IntradayOhlcInput, IntradayOhlcParams, IntradayOhlcQuery,
 };
@@ -30,6 +34,7 @@ pub use reference::{
 use backtest::BACKTEST_PATH;
 use common::build_url;
 use daily::{DAILY_INDEX_PATH, DAILY_STOCK_PRICE_PATH};
+use intraday_tick::INTRADAY_BY_TICK_PATH;
 use ohlc::{DAILY_OHLC_PATH, INTRADAY_OHLC_PATH};
 use reference::{INDEX_COMPONENTS_PATH, INDEX_LIST_PATH, SECURITIES_DETAILS_PATH, SECURITIES_PATH};
 
@@ -67,6 +72,7 @@ impl_rest_request!(IndexComponentsQuery, IndexComponents, INDEX_COMPONENTS_PATH)
 impl_rest_request!(IndexListQuery, Index, INDEX_LIST_PATH);
 impl_rest_request!(DailyOhlcQuery, DailyOhlc, DAILY_OHLC_PATH);
 impl_rest_request!(IntradayOhlcQuery, IntradayOhlc, INTRADAY_OHLC_PATH);
+impl_rest_request!(IntradayByTickQuery, IntradayByTick, INTRADAY_BY_TICK_PATH);
 impl_rest_request!(DailyIndexQuery, DailyIndex, DAILY_INDEX_PATH);
 impl_rest_request!(
     DailyStockPriceQuery,
@@ -80,6 +86,7 @@ pub(crate) fn typed_url<R: RestRequest>(request: &R, base: &Url) -> Result<Url, 
 
 /// Supported REST request variants.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ApiRequest {
     /// List securities.
     Securities(SecuritiesQuery),
@@ -93,6 +100,8 @@ pub enum ApiRequest {
     DailyOhlc(DailyOhlcQuery),
     /// Query intraday OHLC data.
     IntradayOhlc(IntradayOhlcQuery),
+    /// Query unaggregated intraday ticks.
+    IntradayByTick(IntradayByTickQuery),
     /// Query daily index data.
     DailyIndex(DailyIndexQuery),
     /// Query daily stock prices.
@@ -112,6 +121,7 @@ impl ApiRequest {
             Self::IndexList(query) => build_url(endpoint, query),
             Self::DailyOhlc(query) => build_url(endpoint, query),
             Self::IntradayOhlc(query) => build_url(endpoint, query),
+            Self::IntradayByTick(query) => build_url(endpoint, query),
             Self::DailyIndex(query) => build_url(endpoint, query),
             Self::DailyStockPrice(query) => build_url(endpoint, query),
             Self::Backtest(query) => build_url(endpoint, query),
@@ -127,6 +137,7 @@ impl ApiRequest {
             Self::IndexList(_) => INDEX_LIST_PATH,
             Self::DailyOhlc(_) => DAILY_OHLC_PATH,
             Self::IntradayOhlc(_) => INTRADAY_OHLC_PATH,
+            Self::IntradayByTick(_) => INTRADAY_BY_TICK_PATH,
             Self::DailyIndex(_) => DAILY_INDEX_PATH,
             Self::DailyStockPrice(_) => DAILY_STOCK_PRICE_PATH,
             Self::Backtest(_) => BACKTEST_PATH,

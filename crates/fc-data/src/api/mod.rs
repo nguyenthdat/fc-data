@@ -8,16 +8,18 @@ mod response;
 
 pub use client::{ClientError, MarketDataClient};
 pub use request::{
-    ApiRequest, BacktestQuery, DailyIndexInput, DailyIndexQuery, DailyOhlcInput, DailyOhlcQuery,
-    DailyStockPriceInput, DailyStockPriceQuery, IndexComponentsQuery, IndexListQuery,
-    IntradayOhlcInput, IntradayOhlcParams, IntradayOhlcQuery, PageQuery, RequestError, RestRequest,
+    ApiRequest, BacktestQuery, DailyIndexInput, DailyIndexOptions, DailyIndexQuery, DailyOhlcInput,
+    DailyOhlcQuery, DailyStockPriceInput, DailyStockPriceQuery, IndexComponentsQuery,
+    IndexListQuery, IntradayByTickInput, IntradayByTickQuery, IntradayOhlcInput,
+    IntradayOhlcParams, IntradayOhlcQuery, PageQuery, RequestError, RestRequest,
     SecuritiesDetailsQuery, SecuritiesQuery, SsiDate, SsiDateError, ValidationError,
 };
 pub use response::{
     DailyIndex, DailyIndexResponse, DailyOhlc, DailyOhlcResponse, DailyStockPrice,
     DailyStockPriceResponse, Index, IndexComponent, IndexComponents, IndexComponentsResponse,
-    IndexListResponse, IntradayOhlc, IntradayOhlcResponse, RestResponse, SecuritiesDetails,
-    SecuritiesDetailsResponse, SecuritiesResponse, Security, SecurityDetails,
+    IndexListResponse, IntradayByTick, IntradayByTickResponse, IntradayOhlc, IntradayOhlcResponse,
+    RestResponse, SecuritiesDetails, SecuritiesDetailsResponse, SecuritiesResponse, Security,
+    SecurityDetails,
 };
 
 #[derive(Debug, Clone)]
