@@ -1,0 +1,55 @@
+name: Security audit
+
+on:
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - Cargo.lock
+      - .github/workflows/security.yml
+  push:
+    branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - Cargo.lock
+      - .github/workflows/security.yml
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_AUDIT_VERSION: "0.22.2"
+  CARGO_NET_RETRY: "10"
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: "1.97.1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  cargo-audit:
+    name: RustSec dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+
+      - name: Install cargo-audit
+        run: cargo +${RUST_TOOLCHAIN} install cargo-audit --version "$CARGO_AUDIT_VERSION" --locked
+
+      - name: Audit dependency lockfile
+        run: cargo +${RUST_TOOLCHAIN} audit
