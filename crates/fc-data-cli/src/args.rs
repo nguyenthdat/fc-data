@@ -34,6 +34,8 @@ pub(super) enum Command {
     DailyOhlc(DailyOhlcArgs),
     /// Get intraday OHLC data.
     IntradayOhlc(IntradayOhlcArgs),
+    /// Get unaggregated intraday tick data.
+    IntradayByTick(IntradayByTickArgs),
     /// Get daily index data.
     DailyIndex(DailyIndexArgs),
     /// Get daily stock prices.
@@ -202,6 +204,26 @@ pub(super) struct IntradayOhlcArgs {
     pub(super) page: PageArgs,
 }
 
+/// Intraday-by-tick flags.
+#[derive(Debug, Args)]
+pub(super) struct IntradayByTickArgs {
+    /// Security symbol.
+    #[arg(long)]
+    pub(super) symbol: String,
+    /// Start date in DD/MM/YYYY form.
+    #[arg(long)]
+    pub(super) from_date: String,
+    /// End date in DD/MM/YYYY form.
+    #[arg(long)]
+    pub(super) to_date: String,
+    /// One-based page number from 1 to 10.
+    #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=10))]
+    pub(super) page_index: u8,
+    /// SSI-supported page size.
+    #[arg(long, default_value_t = 10, value_parser = parse_page_size)]
+    pub(super) page_size: u16,
+}
+
 /// Daily index flags.
 #[derive(Debug, Args)]
 pub(super) struct DailyIndexArgs {
@@ -223,6 +245,9 @@ pub(super) struct DailyIndexArgs {
     /// SSI ordering direction.
     #[arg(long, value_enum, ignore_case = true, default_value_t = Order::Desc)]
     pub(super) order: Order,
+    /// Return records in ascending order.
+    #[arg(long, default_value_t = false, action = clap::ArgAction::Set)]
+    pub(super) ascending: bool,
     /// Pagination flags.
     #[command(flatten)]
     pub(super) page: PageArgs,

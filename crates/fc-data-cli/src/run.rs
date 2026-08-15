@@ -7,14 +7,15 @@ use thiserror::Error;
 
 use super::args::{
     BacktestArgs, Cli, Command, DailyIndexArgs, DailyOhlcArgs, DailyStockPriceArgs,
-    IndexComponentsArgs, IndexListArgs, IntradayOhlcArgs, PageArgs, SecuritiesArgs,
-    SecuritiesDetailsArgs, SecuritiesPageArgs, StreamArgs,
+    IndexComponentsArgs, IndexListArgs, IntradayByTickArgs, IntradayOhlcArgs, PageArgs,
+    SecuritiesArgs, SecuritiesDetailsArgs, SecuritiesPageArgs, StreamArgs,
 };
 use ssi_fc_data::{
     api::{
-        ApiRequest, BacktestQuery, ClientError, DailyIndexInput, DailyIndexQuery, DailyOhlcInput,
-        DailyOhlcQuery, DailyStockPriceInput, DailyStockPriceQuery, IndexComponentsQuery,
-        IndexListQuery, IntradayOhlcInput, IntradayOhlcQuery, MarketDataClient, PageQuery,
+        ApiRequest, BacktestQuery, ClientError, DailyIndexInput, DailyIndexOptions,
+        DailyIndexQuery, DailyOhlcInput, DailyOhlcQuery, DailyStockPriceInput,
+        DailyStockPriceQuery, IndexComponentsQuery, IndexListQuery, IntradayByTickInput,
+        IntradayByTickQuery, IntradayOhlcInput, IntradayOhlcQuery, MarketDataClient, PageQuery,
         RestRequest, SecuritiesDetailsQuery, SecuritiesQuery, ValidationError,
     },
     config::{ConfigError, Settings},
@@ -65,6 +66,9 @@ pub(super) async fn run(cli: Cli) -> Result<(), RunError> {
         Command::DailyOhlc(args) => execute_typed(&client, DailyOhlcQuery::try_from(args)?).await?,
         Command::IntradayOhlc(args) => {
             execute_typed(&client, IntradayOhlcQuery::try_from(args)?).await?
+        }
+        Command::IntradayByTick(args) => {
+            execute_typed(&client, IntradayByTickQuery::try_from(args)?).await?
         }
         Command::DailyIndex(args) => {
             execute_typed(&client, DailyIndexQuery::try_from(args)?).await?
@@ -195,18 +199,34 @@ impl TryFrom<IntradayOhlcArgs> for IntradayOhlcQuery {
     }
 }
 
+impl TryFrom<IntradayByTickArgs> for IntradayByTickQuery {
+    type Error = ValidationError;
+
+    fn try_from(args: IntradayByTickArgs) -> Result<Self, Self::Error> {
+        Self::parse(IntradayByTickInput {
+            symbol: args.symbol,
+            from_date: args.from_date,
+            to_date: args.to_date,
+            page: PageQuery::new(args.page_index, args.page_size)?,
+        })
+    }
+}
+
 impl TryFrom<DailyIndexArgs> for DailyIndexQuery {
     type Error = ValidationError;
 
     fn try_from(args: DailyIndexArgs) -> Result<Self, Self::Error> {
-        Self::parse(DailyIndexInput {
-            request_id: args.request_id,
-            index_id: args.index_id,
-            from_date: args.from_date,
-            to_date: args.to_date,
-            page: args.page.try_into()?,
-            order_by: args.order_by,
-            order: args.order.as_str().to_owned(),
+        Self::parse_with_options(DailyIndexOptions {
+            input: DailyIndexInput {
+                request_id: args.request_id,
+                index_id: args.index_id,
+                from_date: args.from_date,
+                to_date: args.to_date,
+                page: args.page.try_into()?,
+                order_by: args.order_by,
+                order: args.order.as_str().to_owned(),
+            },
+            ascending: args.ascending,
         })
     }
 }
