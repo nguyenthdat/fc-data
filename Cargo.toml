@@ -3,10 +3,14 @@ members = ["crates/fc-data", "crates/fc-data-cli"]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
+authors = ["Dat Nguyen <dat.nguyen@bitbytelab.io>"]
+repository = "https://github.com/nguyenthdat/fc-data"
+homepage = "https://github.com/nguyenthdat/fc-data"
+readme = "README.md"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
