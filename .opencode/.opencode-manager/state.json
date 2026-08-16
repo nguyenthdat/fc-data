@@ -7,6 +7,18 @@
   },
   "plugins": {},
   "skills": {},
-  "rules": {},
+  "rules": {
+    "rust-module-structure": {
+      "title": "Rust Module Structure",
+      "description": "Organize Rust features, visibility boundaries, re-exports, and tests with cohesive directory modules.",
+      "tags": [
+        "architecture",
+        "rust"
+      ],
+      "path": "rules/rust-module-structure.md",
+      "digest": "ff94bc06aab39661a881b7c2f6889f03edc6d59f3cae64fde442c41141c5baf4",
+      "configFile": ".opencode/opencode.jsonc"
+    }
+  },
   "agents": {}
 }
