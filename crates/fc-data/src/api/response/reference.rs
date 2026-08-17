@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 pub struct Security {
     /// SSI market code.
     pub market: String,
-    /// English security name.
-    pub stock_en_name: String,
-    /// Local security name.
-    pub stock_name: String,
+    /// English security name when supplied.
+    pub stock_en_name: Option<String>,
+    /// Local security name when supplied.
+    pub stock_name: Option<String>,
     /// Security symbol.
     pub symbol: String,
 }

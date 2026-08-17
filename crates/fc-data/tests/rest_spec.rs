@@ -250,6 +250,26 @@ fn deserializes_securities_capture_shape() {
 }
 
 #[test]
+fn deserializes_null_security_names_without_defaulting() {
+    // Given
+    let capture = envelope(&json!({
+        "Market": "market",
+        "StockEnName": null,
+        "StockName": null,
+        "Symbol": "symbol"
+    }));
+
+    // When
+    let response: SecuritiesResponse = decode(capture);
+
+    // Then
+    let security = response.data.first().expect("capture has one security");
+    let serialized = serde_json::to_value(security).expect("security serializes");
+    assert_eq!(serialized.get("StockEnName"), Some(&Value::Null));
+    assert_eq!(serialized.get("StockName"), Some(&Value::Null));
+}
+
+#[test]
 fn deserializes_securities_details_capture_shape() {
     let response: SecuritiesDetailsResponse = decode(envelope(&securities_details_item()));
 
